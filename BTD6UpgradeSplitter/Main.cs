@@ -21,10 +21,11 @@ using Assets.Scripts.Unity.UI_New.Upgrade;
 using Assets.Scripts.Unity.Bridge;
 using BloonsTD6_Mod_Helper.Extensions;
 using Il2CppSystem.Collections.Generic;
+using BloonsTD6_Mod_Helper;
 
 namespace BTD6UpgradeSplitter
 {
-    public class Main : MelonMod
+    public class Main : BloonsTD6Mod
     {
         public static (int, int, int)[] upgradeGroups = new (int, int, int)[]
         {
@@ -43,25 +44,21 @@ namespace BTD6UpgradeSplitter
         {
             base.OnApplicationStart();
 
-            HarmonyInstance.Create("ScallyGames.BTD6UpgradeSplitter").PatchAll();
-
             MelonLogger.Msg("BTD6UpgradeSplitter mod loaded");
         }
 
         public static void Initialise()
         {
-            MelonLogger.Msg("Splitting upgrades");
-
+            MelonLogger.Msg("Initialising");
             var baseTowers = Game.instance.model.towerSet.ToArray();
 
             int towerIndex = 0;
 
             List<TowerModel> newTowers = new List<TowerModel>(baseTowers.Length * 6 * 6);
-            List<ShopTowerDetailsModel> newShopTowerModels = new List<ShopTowerDetailsModel>(baseTowers.Length * 6);
+            List<TowerDetailsModel> newShopTowerModels = new List<TowerDetailsModel>(baseTowers.Length * 6);
 
             foreach (var baseTower in baseTowers)
             {
-                MelonLogger.Msg($"Generating turrets: {Math.Floor(towerIndex / 6.0) + 1}/{baseTowers.Length}");
                 foreach (var upgrade in upgradeGroups)
                 {
                     string towerTag = baseTower.towerId + $"{upgrade.Item1}{upgrade.Item2}{upgrade.Item3}";
@@ -127,29 +124,23 @@ namespace BTD6UpgradeSplitter
 
                     towerIndex++;
                 }
-
-
-                Game.instance.model.towers = Game.instance.model.towers.RemoveItem(Game.instance.model.GetTowerFromId(baseTower.towerId));
             }
 
             Game.instance.model.towers = Game.instance.model.towers.Add(newTowers);
-            Game.instance.model.towerSet = new Il2CppReferenceArray<TowerDetailsModel>(newShopTowerModels.ToArray());
+            Game.instance.model.towerSet = Game.instance.model.towerSet.Add<TowerDetailsModel>(newShopTowerModels);
 
             MelonLogger.Msg("Done");
         }
 
-        [HarmonyPatch(typeof(TitleScreen), "Start")]
-        public class Awake_Patch
+        public override void OnTitleScreen()
         {
-            [HarmonyPostfix]
-            public static void Postfix()
+            base.OnTitleScreen();
+
+            if (!isSplitInitialized)
             {
-                if(!isSplitInitialized)
-                {
-                    Initialise();
-                    isSplitInitialized = true;
-                }
-            }   
+                Initialise();
+                isSplitInitialized = true;
+            }
         }
 
         [HarmonyPatch(typeof(ProfileModel), "Validate")]
@@ -158,7 +149,7 @@ namespace BTD6UpgradeSplitter
             [HarmonyPostfix]
             public static void Postfix(ref ProfileModel __instance)
             {
-                foreach(string customTowerName in newTowerNames)
+                foreach (string customTowerName in newTowerNames)
                 {
                     var unlockedTowers = __instance.unlockedTowers;
                     if (!unlockedTowers.Contains(customTowerName))
@@ -172,7 +163,6 @@ namespace BTD6UpgradeSplitter
         [HarmonyPatch(typeof(UpgradeScreen), "UpdateUi")]
         public class UpgradeScreen_Patch
         {
-
             [HarmonyPrefix]
             public static bool Prefix(ref string towerId, ref string upgradeID)
             {
@@ -202,7 +192,7 @@ namespace BTD6UpgradeSplitter
             {
                 var towersToRemove = allTowersInTheGame.ToArray().Where(x => x.name.Contains("Hero"));
 
-                foreach(var towerToRemove in towersToRemove)
+                foreach (var towerToRemove in towersToRemove)
                 {
                     allTowersInTheGame.Remove(towerToRemove);
                 }
@@ -228,10 +218,16 @@ namespace BTD6UpgradeSplitter
                 {
                     foreach (var button in buttons)
                     {
+                        if(!Regex.IsMatch(button.baseTowerModel.baseId, @"(\d)(\d)(\d)"))
+                        {
+                            button.transform.parent.gameObject.SetActive(false);
+                            continue;
+                        }
+
                         var textElements = button.GetComponentsInChildren<TextMeshProUGUI>();
 
                         if (textElements.Count != 2) continue;
-                        
+
                         var moneyElement = textElements[1];
                         var newText = GameObject.Instantiate(moneyElement.transform, moneyElement.transform.parent);
                         var match = Regex.Match(button.baseTowerModel.baseId, @"(\d)(\d)(\d)");
@@ -239,7 +235,7 @@ namespace BTD6UpgradeSplitter
                         newText.GetComponent<TextMeshProUGUI>().text = $"{match.Groups[1].Value}-{match.Groups[2].Value}-{match.Groups[3].Value}";
                         newText.GetComponent<RectTransform>().position = new Vector3(1711.8f, 890, 0);
                     }
-                    
+
                     isInventoryInitialized = true;
                 }
             }
