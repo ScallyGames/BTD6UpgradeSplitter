@@ -19,9 +19,9 @@ using UnityEngine;
 using System.Text.RegularExpressions;
 using Assets.Scripts.Unity.UI_New.Upgrade;
 using Assets.Scripts.Unity.Bridge;
-using BloonsTD6_Mod_Helper.Extensions;
 using Il2CppSystem.Collections.Generic;
-using BloonsTD6_Mod_Helper;
+using BTD_Mod_Helper;
+using BTD_Mod_Helper.Extensions;
 
 namespace BTD6UpgradeSplitter
 {
